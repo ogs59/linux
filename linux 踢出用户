@@ -1,0 +1,6 @@
+linux 踢出用户
+
+w 查看有多少连接
+
+pkill 杀掉对应的tty
+pkill -kill -t pts/1

@@ -1,0 +1,227 @@
+ postfixdovecot
+http://bbs.chinaunix.net/thread-4162828-1-1.html
+
+
+ 1.创建一个vmail用户，用作管理虚拟邮箱的文件夹
+
+[root@mail mail]#useradd -u 2000 -d /var/vmail -m -s /sbin/nologin vmail
+
+
+ 2.安装mysql/dovecot/httpd/php
+
+ yum -y install httpd mysql mysql-devel mysql-server php php-pecl-Fileinfo php-mcrypt php-devel php-mysql php-common php-mbstring php-gd php-imap php-ldap php-odbc php-pear php-xml php-xmlrpc pcre pcre-devel
+
+ 安装完之后把mysqld dovecot httpd postfix 
+ 设置为开机自启动 命令为：chkconfig xxxx on   
+
+ 数据库配置:
+mysqladmin -u root password 'channel'
+
+mysql>create database postfix;
+mysql>grant all privileges on postfix.* to postfix@localhost identified by 'postfix';
+mysql>flush privileges;
+
+
+3.配置postfixadmin
+
+配置postfixadmin ,这个到官网去下载，然后将其解压到‘html’目录下
+
+wget http://jaist.dl.sourceforge.net/project/postfixadmin/postfixadmin/postfixadmin-2.91/postfixadmin-2.91.tar.gz
+tar zxvf postfixadmin-2.92.tar.gz -C /var/www/html/
+
+vim /var/www/html/mail/config.inc.php
+
+    [root@mail ~]# vim /var/www/html/mail/config.inc.php
+    $CONF['configured'] = fslah;    #改为true  
+    $CONF['default_language'] = 'en';   #改为cn
+    $CONF['database_type'] = 'mysql';     #这里改为你的数据库类型，按版本区分
+    $CONF['database_host'] = 'localhost';
+    $CONF['database_user'] = 'postfix';     #这里改为数据库的用户名
+    $CONF['database_password'] = 'postfix';  #这里改为数据库的密码
+    $CONF['database_name'] = 'postfix';    #这里改为存放邮件数据库的名字
+    $CONF['emailcheck_resolve_domain']='YES';   #如果你没做MX记录的话，将此项改为NO,
+
+修改文件权限：
+  chmod -R 777 /var/www/html/mail
+
+  service httpd start
+
+  service dovecot start
+
+  进入IP/adminmail/setup.php 
+
+   创建postfixadmin后台管理密码并修改配置文件，我设置的密码是...秘密.... 
+   将字符串粘进配置文件setup_password
+
+
+
+ 现在来配置postfix 了，它有俩个主要配置文件，在/etc/postfix目录下的main.cf master.cf  
+
+
+    [root@mail postfix]# vim main.cf     先修改基本的配置
+    mydomain = brahmaol.com    #改为你邮件的域名
+    myhostname = mail.brahmaol.com  #改为你的主机名
+    mynetworks-style = subnet
+    mynetworks = 172.168.96.0/24   #改为你的网段
+    home_mailbox = Maildir         
+    inet_interfaces = all               
+    inet_protocols = all
+    #--------------------以下内容为新添加-------------------------
+    virtual_mailbox_domains = mysql:/etc/postfix/mysql_virtual_domains_maps.cf
+    virtual_alias_maps = mysql:/etc/postfix/mysql_virtual_alias_maps.cf
+    virtual_mailbox_maps = mysql:/etc/postfix/mysql_virtual_mailbox_maps.cf
+    # Additional for quota support
+    virtual_create_maildirsize = yes
+    virtual_mailbox_extended = yes
+    virtual_mailbox_limit_maps = mysql:/etc/postfix/mysql_virtual_mailbox_limit_maps.cf   
+    virtual_mailbox_limit_override = yes
+    virtual_maildir_limit_message = Sorry, this user has exceeded their disk space quota, please try again later.
+    virtual_overquota_bounce = yes
+    #Specify the user/group that owns the mail folders. I'm not sure if this is strictly necessary when using Dovecot's LDA.
+    virtual_uid_maps = static:2000    #这是新建虚拟用户的ID
+    virtual_gid_maps = static:2000    #这是新建虚拟组的ID
+    virtual_mailbox_base = /var/vmail    #邮件存放位置
+    #----------------------smtp----------------------------------
+    smtpd_sasl_auth_enable = yes     #开启认证
+    smtpd_sasl_type = dovecot          #认证类型
+    dovecot_destination_recipient_limit = 1
+    smtpd_sasl_path = /var/run/dovecot/auth-client
+    smtpd_sasl_security_options = noanonymous
+    broken_sasl_auth_clients = yes
+    smtpd_recipient_restrictions = permit_sasl_authenticated, permit_mynetworks, reject_unauth_destination
+
+
+
+
+     新建postfix连接数据库查询的文件。 链接数据库的帐号密码请按照实际情况修改
+
+
+     [root@mail postfix]# vim /etc/postfix/mysql_virtual_domains_maps.cf
+user = postfix
+password = postfix
+hosts = localhost
+dbname = postfix
+query = SELECT domain FROM domain WHERE domain='%s' AND active = '1'
+
+[root@mail ~]# vim /etc/postfix/mysql_virtual_alias_maps.cf
+user = postfix
+password = postfix
+hosts = localhost
+dbname = postfix
+query = SELECT goto FROM alias WHERE address='%s' AND active = '1'
+
+[root@mail postfix]# vim mysql_virtual_mailbox_maps.cf
+user = postfix
+password = postfix
+hosts = localhost
+dbname = postfix
+query = SELECT CONCAT(domain,'/',maildir) FROM mailbox WHERE username='%s' AND active = '1'
+
+[root@mail postfix]# vim /etc/postfix/mysql_virtual_mailbox_limit_maps.cf
+user = postfix
+password = postfix
+hosts = localhost
+dbname = postfix
+query = SELECT quota FROM mailbox WHERE username='%s' AND active = '1'
+
+
+
+
+ dovecot 配置文件 （由于修改的文件太多，我就不一一列出，直接改/etc/dovecot/dovecot.conf 文件就可以）
+
+
+
+    [root@mail postfix]# doveconf -n
+    # 2.0.9: /etc/dovecot/dovecot.conf
+    # OS: Linux 2.6.32-71.el6.x86_64 x86_64 CentOS Linux release 6.0 (Final) ext4
+    protocols = imap pop3
+    listen = *
+    auth_mechanisms = plain login cram-md5
+    dict {
+      quota = mysql:/etc/dovecot/dovecot-dict-sql.conf.ext
+    }
+    disable_plaintext_auth = no
+    listen = *
+    mail_location = maildir:/var/vmail/%d/%d/%n    #命令指定客户端接收邮件到哪个目录请按照实际情况修改
+    mbox_write_locks = fcntl
+    passdb {
+      args = /etc/dovecot/dovecot-sql.conf.ext
+      driver = sql
+    }
+    protocols = imap pop3
+    service auth {
+      unix_listener auth-client {
+        group = postfix
+        mode = 0600
+        user = postfix
+      }
+      unix_listener auth-userdb {
+        group = vmail
+        mode = 0600
+        user = vmail
+      }
+    }
+    service dict {
+      unix_listener dict {
+        group = vmail
+        mode = 0600
+        user = vmail
+      }
+    }
+
+    ssl_cert = </etc/pki/dovecot/certs/dovecot.pem
+    ssl_key = </etc/pki/dovecot/private/dovecot.pem
+    userdb {
+      args = /etc/dovecot/dovecot-sql.conf.ext
+      driver = sql
+    }
+    [root@mail postfix]# 
+
+
+
+     新建dovecot-sql.conf.ext与dovecot-dict-sql.conf.ext 文件
+
+
+    [root@mail postfix]# vim /etc/dovecot/dovecot-sql.conf.ext
+    driver = mysql
+    connect = host=localhost dbname=postfix user=postfix password=postfix
+    default_pass_scheme = MD5
+    user_query = SELECT CONCAT('/var/vmail/', maildir) AS home, 2000 AS uid, 2000 AS gid, CONCAT('*:bytes=', quota) as quota_rule FROM mailbox WHERE username = '%u' AND active='1'
+    password_query = SELECT username AS user, password, CONCAT('/var/vmail/', maildir) AS userdb_home, 2000 AS userdb_uid, 2000 AS userdb_gid, CONCAT('*:bytes=', quota) as userdb_quota_rule FROM mailbox WHERE username = '%u' AND active='1'
+    
+
+    [root@mail postfix]# vim /etc/dovecot/dovecot-dict-sql.conf.ext
+    connect = host=localhost dbname=postfix user=postfix password=postfix
+    map {
+      pattern = priv/quota/storage
+      table = quota2
+      username_field = username
+      value_field = bytes
+    }
+    map {
+      pattern = priv/quota/messages
+      table = quota2
+      username_field = username
+      value_field = messages
+    }
+
+
+    可以pop3/IMAP登录，发信也没问题，可对方收不到邮件，对方发给我的邮件也收不到，查看日志没有报错，在/var/vmail/域名/域名/user/new   可以看到对方发过来的邮件。可是客户端获取不到邮件，这种情况的话就要修改配置文件
+vim /etc/dovecot/conf.d/10-mail.conf
+mail_location = maildir:/var/vmail/%d/%d/%n  》根据邮件位置修改 
+
+ 然后在保存重启dovecot 服务后一切正常！！！   有问题欢迎联系我，大家一起讨论
+
+ CREATE DATABASE roundcube DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;
+
+ grant all privileges on roundcube.* to roundcube@localhost identified by 'roundcube'; 
+
+ GRANT ALL PRIVILEGES ON roundcube.* TO roundcube@localhost IDENTIFIED BY 'roundcube';
+
+./configure --with-php-config=/usr/local/php/bin/php-config --with-imap=/usr/lib64 --with-imap-ssl --with-kerberos
+
+​./configure --prefix=/usr/local/php --with-config-file-path=/usr/local/php/etc --enable-fpm --enable-pcntl --enable-mysqlnd --enable-opcache --enable-sockets --enable-sysvmsg --enable-sysvsem  --enable-sysvshm --enable-shmop --enable-zip --enable-ftp --enable-soap --enable-xml --enable-mbstring --disable-rpath --disable-debug --disable-fileinfo --with-mysql --with-mysqli --with-pdo-mysql --with-pcre-regex --with-iconv --with-zlib --with-mcrypt --with-gd --with-openssl --with-mhash --with-xmlrpc --with-curl --with-imap-ssl
+
+./configure --prefix=/usr/local/php --with-apxs2=/usr/local/apache2/bin/apxs --enable-fpm --enable-pcntl --enable-mysqlnd --enable-opcache --enable-sockets --enable-sysvmsg --enable-sysvsem  --enable-sysvshm --enable-shmop --enable-zip --enable-ftp --enable-soap --enable-xml --enable-mbstring --disable-rpath --disable-debug --disable-fileinfo --with-mysql --with-mysqli --with-pdo-mysql --with-pcre-regex --with-iconv --with-zlib --with-mcrypt --with-gd --with-openssl --with-mhash --with-xmlrpc --with-curl --with-imap-ssl
+
+01356938

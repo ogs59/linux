@@ -1,0 +1,38 @@
+
+linux自动启动脚本
+
+vi falcon
+#!/bin/bash
+/server/open-falcon/agent/bin/control start
+
+su -l airag -c "/home/airag/services/ae-service/bin/start.sh start"
+
+先写好脚本，copy到/etc/rc.d/init.d/mongo
+
+chmod +x /etc/rc.d/init.d/mongo
+
+ln -s /etc/rc.d/init.d/mongo /etc/rc3.d/S80mongo   (开机后60秒启动)
+
+
+/server/mysql/mysql.server start
+
+su -l airag -c "/home/airag/apache-tomcat/bin/startup.sh"
+
+su -l airag -c "/home/airag/zookeeper-3.4.6/bin/zkServer.sh start"
+
+
+su -l airag -c "/server/mongodb/bin/mongod --dbpath=/data/mongodb/data --logpath=/data/log/mongodb/mongodb.log --logappend --auth --port=27017 --fork"
+
+su -l airag -c "/server/tomcat/bin/startup.sh"
+
+
+
+/server/open-falcon/agent/control start
+
+/server/redis/redis-server /server/redis/redis.conf
+
+su -l esadmin -c "/server/elasticsearch/bin/elasticsearch -d"
+
+/server/kibana/bin/kibana &
+
+/server/logstash/bin/logstash -f /server/logstash/conf/logstash.conf &

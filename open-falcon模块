@@ -1,0 +1,32 @@
+open-falcon模块
+
+
+报警相关组件：
+
+sender:报警发送，控制并发度，提供发送缓冲的queue
+uic(fe): 用户管理，单点登录
+portal： 配置报警策略，管理机器分组的web端
+hbs：心跳服务器
+judge：报警判读模块
+links：报警合并依赖的web端，存放报警详情
+alarm：报警事件处理器
+
+
+portal：
+
+virtualenv ./env
+source env/bin/activate
+
+vi pip_requirements.txt
+delete mysql-python
+
+easy_install mysql-python
+
+
+redis 模块：
+
+http://123.56.16.99:8080/falconMail/sms
+
+
+fe:设置管理员密码：
+http://ip/root?password=channel
