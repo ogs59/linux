@@ -1,0 +1,40 @@
+
+1.下载phpldapadmin
+
+cd /usr/local/src
+
+wget http://sourceforge.net/projects/phpldapadmin/files/phpldapadmin-php5/1.2.2/phpldapadmin-1.2.2.tgz/download
+
+tar xvf phpldapadmin-1.2.2.tgz
+
+mv phpldapadmin-1.2.2 phpldapadmin
+
+
+2.安装httpd
+
+yum install httpd  php php-ldap
+
+mv phpldapadmin /var/www/html/
+
+3.修改phpldapadmin配置文件
+
+	/var/www/html/phpldapadmin/config/config.php修改的内容如下：
+
+$servers = new Datastore();
+$servers->newServer('ldap_pla');
+$servers->setValue('server','name','My LDAP Server');
+$servers->setValue('server','host','192.168.1.203');
+$servers->setValue('server','port',389);
+$servers->setValue('server','base',array('dc=example,dc=com'));
+$servers->setValue('login','auth_type','session');
+$servers->setValue('login','bind_id','cn=Manager,dc=example,dc=com');
+$servers->setValue('login','bind_pass','123456');
+$servers->setValue('server','tls',false);
+
+
+4.启动httpd
+
+  启动httpd，登陆phpldapadmin
+
+  在浏览器输入http://192.168.1.203/phpldapadmin/
+

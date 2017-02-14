@@ -1,0 +1,230 @@
+ldap
+
+[root@server openldap]# slappasswd
+New password: 
+Re-enter new password: 
+{SSHA}Uzva/P3VaF8O5W44jTh2nOw8LaUUDpwG
+
+
+
+dn: cn=ldapuser1,ou=users,dc=test,dc=com 
+
+uid: ldapuser1 
+
+cn: ldapuser1 
+
+sn: ldap1 
+
+objectClass: inetOrgPerson 
+
+userPassword: 123456 
+
+ 
+
+dn: cn=ldapuser2,ou=users,dc=test,dc=com 
+
+uid: ldapuser2 
+
+cn: ldapuser2 
+
+sn: ldap2 
+
+objectClass: inetOrgPerson 
+
+userPassword: 123456 
+
+ 
+
+ 
+
+通过检索可以看到，现在
+
+LDAP
+
+服务器的
+
+test.com
+
+域还没有任何信息
+
+ 
+
+[root@ldaptmp]#
+
+ldapsearch -x -b "dc=test,dc=com" 
+
+# extended LDIF 
+
+# 
+
+# LDAPv3 
+
+# base<dc=test,dc=com> with scope subtree 
+
+# filter: (objectclass=*) 
+
+# requesting: ALL 
+
+# 
+
+# search result 
+
+search: 2 
+
+result: 32 No such object 
+
+# numResponses: 1 
+
+ 
+
+根据编写的组织架构文件添加组织架构，提示输入的密码是
+
+slappasswd
+
+生成的密码
+
+ 
+
+[root@ldaptmp]#
+
+ldapadd -x -D "cn=admin,dc=test,dc=com" -W -f /tmp/base.ldif 
+
+Enter LDAP Password: 
+
+ 
+
+adding new entry "dc=test,dc=com" 
+
+adding new entry "ou=users,dc=test,dc=com" 
+
+ 
+
+根据编写的用户文件添加用户
+
+ 
+
+[root@ldaptmp]#
+
+ldapadd -x -D "cn=admin,dc=test,dc=com" -W -f /tmp/user.ldif 
+
+Enter LDAP Password: 
+
+ 
+
+adding new entry "cn=ldapuser1,ou=users,dc=test,dc=com" 
+
+adding new entry "cn=ldapuser2,ou=users,dc=test,dc=com" 
+
+ 
+
+检索
+
+test.com
+
+域内所有有
+
+cn
+
+的用户
+
+ 
+
+[root@ldaptmp]#
+
+ldapsearch -x -b 'dc=test,dc=com' 'cn=*' 
+
+# extended LDIF 
+
+# 
+
+# LDAPv3 
+
+# base<dc=test,dc=com> with scope subtree 
+
+# filter: cn=* 
+
+# requesting: ALL 
+
+# 
+
+# ldapuser1, users, test.com 
+
+dn: cn=ldapuser1,ou=users,dc=test,dc=com 
+
+uid: ldapuser1 
+
+cn: ldapuser1 
+
+sn: ldap1 
+
+objectClass: inetOrgPerson 
+
+userPassword:: MTIzNDU2 
+
+ 
+
+# ldapuser2, users, test.com 
+
+dn: cn=ldapuser2,ou=users,dc=test,dc=com 
+
+uid: ldapuser2 
+
+cn: ldapuser2 
+
+sn: ldap2 
+
+objectClass: inetOrgPerson 
+
+userPassword:: MTIzNDU2 
+
+# search result 
+
+search: 2 
+
+result: 0 Success 
+
+# numResponses: 3 
+
+# numEntries: 2 
+
+ 
+
+检索
+
+test.com
+
+域内指定
+
+cn
+
+的用户
+
+ 
+
+[root@ldaptmp]#
+
+ldapsearch -x -b 'dc=test,dc=com' 'cn=ldapuser1' 
+
+
+# Define ACLs -- access control definitions
+
+access to dn=".*,dc=airag,dc=com" attr=userPassword
+        by dn="cn=root,dc=airag,dc=com" write
+        by self write
+        by * auth
+
+access to dn=".*,dc=airag,dc=com" attr=mail
+        by dn="cn=root,dc=airag,dc=com" write
+        by self write
+        by * read
+
+access to dn=".*,ou=users,dc=airag,dc=com"
+        by * read
+
+access to dn=".*,dc=airag,dc=com"
+        by self write
+        by * read
+
+
+
+

@@ -1,0 +1,41 @@
+
+slapd.conf添加配置文件:
+以下三行，去掉注释
+
+modulepath /usr/lib/openldap
+modulepath /usr/lib64/openldap
+moduleload syncprov.la
+
+
+末尾添加：
+index objectClass,entryCSN,entryUUID            eq    #添加优化索引
+
+serverID    1   #唯一的标示
+
+syncrepl      rid=001       #
+              provider=ldap://172.16.0.32:389
+              bindmethod=simple
+              binddn="cn=admin,dc=chaoke,dc=com"
+              credentials=channel
+              searchbase="dc=chaoke,dc=com"
+              attrs="*,+"                    #注意这行，上次丢了*，传过来的信息只有objectClass
+              schemachecking=off
+              type=refreshAndPersist
+              retry="5 +"
+
+mirrormode on 				    # 镜像模式	
+overlay syncprov  			    # 复制引擎  
+syncprov-checkpoint 100 1     	# 操作100次同步一次，或者1分钟同步一次
+syncprov-sessionlog 100
+
+
+
+
+[root@master keepalived-1.2.2]# service keepalived start
+
+Starting Keepalived for LVS: /bin/bash:keepalived: command not found   [FAILED]
+                                                        
+
+解决方法 :
+
+[root@backup ~]# cp/usr/local/sbin/keepalived /usr/sbin/

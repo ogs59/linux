@@ -1,0 +1,336 @@
+禁止匿名访问：
+disallow        bind_anon
+
+
+
+最近由于工作的原因，需要做一些DevOps和Saas相关的工作，需要使用到LDAP来搭建一个统一的账号管理认证平台，把需要用到的N台Linux Server配置好LDAP服务。
+
+××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××
+
+Note：
+
+本次配置的服务器环境是<redhat enterprise linux 6.5>, Centos/Suse类似， Debian/Ubuntu安装包可能略有不同，但是大致过程应该相似。
+
+PS:LDAP 是C/S结构的，所以接下来我们要设计好哪台机器上搭建LDAP Server,剩下的机器上安装LDAP Client.
+
+LDAP Server Machine:192.168.1.10 (此IP为机器的实际IP，自己配置时根据实际情况而定)
+
+LDAP Client   Machine:192.168.1.11 (此IP为机器的实际IP，自己配置时根据实际情况而定)
+
+LDAP Client Machine N...... (其余N多的client机器不一一列举，完成一个client配置后，其他机器Clone整个过程即可 :-))
+
+××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××××
+
+写在开始之前：在自己第一次做LDAP配置的时候，也曾查阅了很多国内的相关博客和帖子，发现好多讲的都不够完善，让人在安装和配置调试遇到问题是，总要浪费很大一部分时间来游走于各大搜索引擎去寻根问药，多么痛苦的过程，而且好多还被“墙”了，你们懂得。。。Anyway,通过不断的尝试和摸索，还是搞定了LDAP的配置，下面来和大家分享一下整个配置过程，包括：client/server配置，su配置，ssh配置...
+
+
+1.LDAP Server Setup:
+a.安装LDAP服务（使用YUM本地光盘安装）
+
+
+# yum install openldap-* -y
+会提示安装以下几个必须的包，另外鉴于依赖，可能还会安装一些其他的包，所以我们选择-y：
+
+
+openldap-devel-2.4.23-26.el6.x86_64
+openldap-clients-2.4.23-26.el6.x86_64
+openldap-2.4.23-26.el6.x86_64
+openldap-servers-2.4.23-26.el6.x86_64
+....
+
+OpenLDAP 使用Berkely-DB来作为数据库存储信息，我们可以去官网下载解压到本地安装。But,用Yum的话，应该会帮我们做好这一切事情。 我们只要在安装完后检查一下是否安装了db4*相关的rpm包就可以了。If true,那恭喜，我们可以进行下一步了。If not,请用yum命令安装。
+
+查看rpm安装包的命令：rpm -qa | grep db4
+
+
+b.拷贝LDAP配置文件到LDAP目录(redhat6.3)：
+
+# cd /etc/openldap/
+# cp /usr/share/openldap-servers/slapd.conf.obsolete slapd.conf
+
+Note: redhat6.0或6.1版本配置文件在主目录有备份：
+
+# cd /etc/openldap/
+# cp slapd.conf.bak slapd.conf
+
+c.创建LDAP管理员密码：
+# slappasswd
+这里我输入的密码是redhat,输入完密码后,返回一串密文，先保存到剪贴板,之后要复制到LDAP配置文件中使用:
+
+{SSHA}pfAJm+JJa4ec2y8GjTc8uMEJpoR5YKLy
+
+d.编译配置文件
+# vi /etc/openldap/slapd.conf
+
+....
+
+# enable server status monitoring (cn=monitor)
+database monitor
+access to *
+        by dn.exact="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" read
+        by dn.exact="cn=admin,dc=test,dc=com" read
+        by * none
+
+
+#######################################################################
+# database definitions
+#######################################################################
+
+
+database        bdb
+suffix          "dc=test,dc=com"
+checkpoint      1024 15
+rootdn          "cn=admin,dc=test,dc=com"
+# Cleartext passwords, especially for the rootdn, should
+# be avoided.  See slappasswd(8) and slapd.conf(5) for details.
+# Use of strong authentication encouraged.
+# rootpw                secret
+# rootpw                {crypt}ijFYNcSNctBYg
+rootpw {SSHA}pfAJm+JJa4ec2y8GjTc8uMEJpoR5YKMn
+
+.......
+
+保存退出。
+
+e.拷贝DB_CONFIG文件到指定目录
+# cp /usr/share/openldap-servers/DB_CONFIG.example  /var/lib/ldap/DB_CONFIG
+删除默认/etc/openldap/slapd.d下面的所有内容，否则后面在使用ldapadd的时候会报错：
+# rm -rf /etc/openldap/slapd.d/*
+
+f.启动LDAP的slapd服务,并设置自启动：
+# service slapd restart
+# chkconfig slapd on
+赋予配置目录相应权限：
+# chown -R ldap:ldap /var/lib/ldap
+# chown -R ldap:ldap /etc/openldap/
+
+g.测试并生成配置文件：
+slaptest  -f /etc/openldap/slapd.conf -F /etc/openldap/slapd.d
+返回config file testing succeeded,则配置成功。
+赋予生成的配置文件予权限并重启：
+# chown -R ldap:ldap /etc/openldap/slapd.d
+# service slapd restart
+
+h.创建一个账号，以备客户端测试登陆
+# useradd ldapuser1
+# passwd ldapuser1
+至此，这些用户仅仅是系统上存在的用户（存储在/etc/passwd和/etc/shadow上），并没有在LDAP数据库里，所以要把这些用户导入到LDAP里面去。但LDAP只能识别特定格式的文件 即后缀为ldif的文件（也是文本文件），所以不能直接使用/etc/passwd和/etc/shadow。 需要migrationtools这个工具把这两个文件转变成LDAP能识别的文件。
+
+i.安装配置migrationtools
+# yum install migrationtools -y
+
+j.进入migrationtool配置目录
+# cd /usr/share/migrationtools/
+首先编辑migrate_common.ph
+
+# vi  migrate_common.ph
+
+...
+
+# Default DNS domain
+$DEFAULT_MAIL_DOMAIN = "test.com";
+
+
+# Default base
+$DEFAULT_BASE = "dc=test,dc=com";
+
+.......
+
+保存退出。：-）
+
+K.下面利用pl脚本将/etc/passwd 和/etc/shadow生成LDAP能读懂的文件格式，保存在/tmp/下
+# ./migrate_base.pl > /tmp/base.ldif
+# ./migrate_passwd.pl  /etc/passwd > /tmp/passwd.ldif
+# ./migrate_group.pl  /etc/group > /tmp/group.ldif
+
+L.下面就要把这三个文件导入到LDAP，这样LDAP的数据库里就有了我们想要的用户
+# ldapadd -x -D "cn=admin,dc=chaoke,dc=com" -W -f /tmp/base.ldif
+# ldapadd -x -D "cn=admin,dc=chaoke,dc=com" -W -f /tmp/passwd.ldif
+# ldapadd -x -D "cn=admin,dc=chaoke,dc=com" -W -f /tmp/group.ldif
+过程若无报错，则LDAP服务端配置完毕
+
+M.重启slapd完成配置
+# service slapd restart
+
+N.现安装NFS，并把ldapuser1的家目录做NFS共享.
+默认REDHAT已安装
+# yum install nfs* -y
+配置NFS共享：
+# vi /etc/exports
+--------------
+/home/ldapuser1         *(rw,no_root_squash)
+--------------
+重启nfs服务：
+# service rpcbind restart
+# service nfs restart
+
+PS.本地需要做ldap控制的账号都要导入到LDAP DB中，否则客户端配置无法正常识别登录。
+
+
+2.LDAP Client Setup:
+
+
+a.安装LDAP client认证需要的pam包：
+
+yum install nss-pam-ldapd pam_ldap -y 
+
+安装完成后，配置ldap 客户端配置文件:
+vim /etc/openldap/ldap.conf
+
+添加
+
+BASE:dc=test,dc=com
+
+URL:192.168.1.10    --->此处为LDAP Server IP
+
+
+b.配置客户端，是机器使用LDAP进行账户验证：
+LANG=C authconfig-tui
+
+
+vim /etc/pam.d/system-auth   注释掉创建家目录，重启sssd服务。
+
+
+c. vim /etc/sssd/sssd.conf 
+
+ 添加enumerate=true,(因该不是必须的，但是加上为妙)
+
+d. service sssd restart        并重启服务。        
+e.进行客户端测试，看能否读到LDAP user 相关信息
+
+ getent passwd |grep ldapuser1
+ 
+f.编辑系统认证文件，保证使用LDAP来认证：
+
+ vim /etc/pam.d/system-auth           update: pam_sss.so  --> pam_ldap.so  可以实现用户su之间切换 
+ ******Please Makre sure all this updated*****************************************************************
+ 其中/etc/pam.d/
+ 
+ vim /etc/pam.d/system-auth
+ vim /etc/pam.d/password-auth
+ 
+
+auth        required      pam_env.so
+auth        sufficient    pam_fprintd.so
+auth        sufficient    pam_unix.so nullok try_first_pass
+auth        requisite     pam_succeed_if.so uid >= 500 quiet
+auth        sufficient    pam_ldap.so
+auth        required      pam_deny.so
+
+
+account     required      pam_unix.so
+account     sufficient    pam_localuser.so
+account     sufficient    pam_succeed_if.so uid < 500 quiet
+account     [default=bad success=ok user_unknown=ignore] pam_ldap.so
+account     required      pam_permit.so
+
+
+password    requisite     pam_cracklib.so try_first_pass retry=3 type=
+password    sufficient    pam_unix.so md5 shadow nullok try_first_pass use_authtok
+password    sufficient    pam_ldap.so use_authtok
+password    required      pam_deny.so
+
+
+session     optional      pam_keyinit.so revoke
+session     required      pam_limits.so
+session     [success=ok default=ignore] pam_succeed_if.so service in crond quiet use_uid
+session     required      pam_unix.so
+session     required      pam_mkhomedir.so skel=/etc/skel/ umask=0022
+session     optional      pam_ldap.so
+
+
+ 配置文件是RHEL6实现用户名验证机制配置文件，大多数服务的配置将都会调用它们。
+ vim /etc/pam.d/system-auth           update: pam_sss  --> pam_ldap  可以实现用户su之间切换
+ *********************************************************************************************************
+
+ service nslcd restart
+
+服务重启之后因该就可以使用LDAP 服务了。
+
+可以 su ldapsuer1或者ssh ldapuser1@xxxxx来使用。
+
+
+客户端配置完成！
+
+
+3. LDAP数据库相关增删查改操作：
+
+操作LDAP的方式有很多，下面以bash下用openldap-clients 套件提供的工具来进行。
+
+
+1、初始化数据
+这一步通常是由特定的应用程序根据其自身使用的需要创建的。包括两部分的内容：
+a、创建.schema文件，该文件定义了后面ldap 中存放对象的类型和属性，这已经在上面sldapd.conf文件中定义；
+b、初始化数据结构，其结构必须由上面的.schema文件已经定义的，并由应用程序读取和使用。
+
+
+初始化文件通常为.ldif 结尾，称为LDIF数据交换格式。这种格式是行界定、冒号分隔的属性-值对。例如：
+
+
+引用
+dn: dc=ldapuser1,ou=People,dc=test,dc=com
+objectClass: top
+objectClass: dcObject
+objectClass: organization
+....
+
+
+导入时，执行：
+# ldapadd -x -h 192.168.1.10 -D 'cn=admin,dc=test,dc=com' -W -f info.ldif
+
+
+ldapadd 命令各参数含义如下：
+-x 为使用简单密码验证方式
+-D 指定管理员DN（与slapd.conf中一致）
+-W 为管理员密码，可以使用-w password 直接输入密码
+-f 为初始化数据LDIF的文件名
+-h 为操作的服务器IP地址
+
+2、搜索操作
+LDAP是读优化数据库，因此，读的速度很快，也很常用。但与关系数据库不同，其以树结构形式读取数据，若不添加过滤，会显示匹配节点下所有节点的内容。若以ldif 的形式表达，刚开始可能不太习惯。
+# ldapsearch -x -b 'dc=test,dc=com'
+
+
+首先要留意的是，ldapsearch 不需要提供验证信息。因为正如前面提到的，LDAP 默认供任何人可读。
+-b 后面定义搜索节点位置，即从该节点往其子节点进行搜索
+
+
+3、身份验证
+修改或添加内容需进行用户验证，可通过下面的命令确认验证信息：
+# ldapwhoami -x -D 'cn=ldapuser1,dc=test,dc=com' -w 'yourpasswd'
+dn:cn=admin,dc=test,dc=com
+Result: Success (0)
+
+
+4、修改操作
+修改内容通常由LDIF 文件提供。因此，可先用ldapsearch 导出节点内容：
+
+
+# ldapsearch -x -LLL -b 'dc=test,dc=com'
+-LLL 表示不输出注释内容，以便后续重新导入。
+
+其实也可以使用文件进行批量修改，我们只要把需要修改信息写入文件即可，比如：
+
+dn: uid=ldapuser1,ou=People,dc=test,dc=com
+changetype: modify
+replace: uidNumber
+uidNumber: 1000
+
+把以上内容写入test.ldif中，运行如下命令：
+
+ldapmodify -x -D "cn=admin,dc=test,dc=com" -w yourpasswd -f test.ldif
+
+
+a、ldapadd 与ldapmodify -a 作用相同
+b、如果在添加或修改时，报Naming violation等错误，则说明添加或修改的内容不符合schema中定义的对象属性规范，需修改后才能重新操作。
+
+
+5、删除操作
+删除时，给出DN即可：
+# ldapdelete -x -D 'cn=admin,dc=test,dc=com' -w yourpasswd -r 'dc=test,dc=com'
+-r 表示以递归模式删除，即删除该节点下面的所有子节点。
+
+
+OK，到这里基本上完整的LDAP配置和使用方法已经比较完整了，大家可以按照步骤自由的去尝试，遇到新问题也可以去google上找答案(Google is a great teacher! :-)).
+
+Good Luck!

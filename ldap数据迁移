@@ -1,0 +1,14 @@
+源服务器：
+/usr/sbin/slapcat > /opt/ldap/ldapdbak.ldif
+
+目标服务器：
+
+/etc/init.d/slapd stop
+
+rm -rf /var/lib/ldap/*
+
+slapadd -l /tmp/ldapdbak.ldif
+
+chown -R ldap:ldap /var/lib/ldap/*
+
+/etc/init.d/slapd start
