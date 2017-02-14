@@ -1,0 +1,46 @@
+
+logstash.conf
+
+input {
+ file {
+   path => "/data/log/php/php_errors.log"
+   type => "pre-prod_web1_php_errors"
+   start_position => "beginning"
+ }
+ file {
+   path => "/data/log/php/php-fpm.log"
+   type => "pre-prod_web1_php_fpm_errors"
+   start_position => "beginning"
+ }
+
+}
+filter {
+  multiline {
+    pattern => "^[^\[]"
+    what => "previous"
+  }
+ }
+
+ 
+output{
+   if [type] =="pre-prod_web1_php_errors"{
+     elasticsearch {
+     host => "120.27.98.169"
+     protocol => "http"
+     index => "pre_prod_web1_php_errors"
+   }
+ }
+  if [type] =="pre-prod_web1_php_fpm_errors"{
+     elasticsearch {
+     host => "120.27.98.169"
+     protocol => "http"
+     index => "pre-prod_web1_php_fpm_errors"
+   }
+ }
+}
+
+
+
+10.252.18.52
+10.163.234.94
+10.174.195.170
