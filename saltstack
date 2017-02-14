@@ -1,0 +1,131 @@
+服务器端：
+ yum install salt-master -y 
+修改配置文件
+  vi /etc/salt/master
+  
+  #master x.x.x.x  监听ip地址
+
+  #auto_accept  ：True  开启自动认证
+
+
+ 客户端：
+ yum install salt-minion -y
+
+ 修改配置文件：
+
+ vi /etc/salt/minion
+
+ #master:  x.x.x.x  maser的ip
+
+ #id: web1   客户端的名称
+
+ chkconfig salt-minion on
+
+ service salt-minion start
+
+
+
+服务器端操作：
+	
+	查看客户端：
+		salt-key -L
+
+
+
+	   -E 正则表达式
+
+		salt -E 'ser' test.ping
+
+		[root@iZ94m74oxuyZ ~]# salt -E 'service' test.ping
+			service2:
+    			True
+			service1:
+    			True
+
+
+grains监听的模块
+
+salt 'web1' grains.ls
+
+具体数据
+
+salt 'web1' grains.items
+
+salt -G 'os:RedHat/Centos' test.ping 
+
+salt '*' grains.item ipv4
+
+salt 'computer4'  grains.item os       
+
+
+ 执行目录文件的分发，并使用压缩传输
+
+
+salt 'web1' cp.get_dir salt://test_dir /tmp gzip=9 
+
+查看客户机上的crontab 
+
+salt 'web1' cron.raw_cron root
+
+
+修改文件的属主
+
+salt 'web1' file.chown /etc/passwd root root
+
+
+远程执行命令：
+
+-L 根据被主机名查找
+	salt -L 'web1' cmd.run 'cd /tmp && ls'
+
+-E 包含s的机器 
+	salt -E 's' cmd.run 'df -h'
+
+按组执行
+	salt -N groupname cmd.run 'df -h'
+
+根据被控主机的grains信息进行匹配过滤
+
+	salt -G 'osrelease:6.5' 'cmd.run' 'python -V'
+根据被控主机的IP地址
+
+	salt -S '10.0.0.1' cmd.run 'df -h'
+
+	salt -S '10.0.0.0/8' cmd.run 'df -h'
+
+
+根据条件运算符not,and,or匹配不同规则的主机信息
+
+	探测id以minion开头，系统为Centos的主机的连通性
+
+	salt -C ‘E@^minion and G@os:Centos‘ test.ping
+
+删除证书
+
+	salt-key -d web1 	删除单个证书
+
+	salt-key -d all		删除所有证书
+
+
+
+master端分组
+G: Grains glob匹配     G@os:Ubuntu
+E: PCRE Minion id匹配  E@web \d+\.
+P: Grains PCRE匹配     P@os:(RedHat|Fedora|CentOS)
+L: minion列表		   L@host1,host2
+I：pillar glob匹配	   I@pdata:foobar
+S: 子网/ip地址匹配	   S@192.168.0.1/24 S@192.168.0.1
+R: range cluster匹配   R@%foo.bar 
+D: minion data匹配	   D@key:value
+
+
+
+nodegroups:
+group1: 'L@host172,host174'
+group2: 'S@192.168.10.172'
+group3: 'P@os:CentOS'
+
+
+
+
+
