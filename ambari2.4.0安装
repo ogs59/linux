@@ -1,0 +1,86 @@
+bigchaoke
+
+ambari环境：
+1.jdk 1.7.80
+
+2.mvn 3.0.5
+wget http://apache.fayea.com/apache-mirror/maven/maven-3/3.0.5/binaries/apache-maven-3.0.5-bin.tar.gz
+
+tar -zxvf apache-maven-3.0.5-bin.tar.gz
+
+vim /etc/profile
+export MAVEN_HOME="/usr/local/apache-maven-3.0.5"
+export PATH=$PATH: $MAVEN_HOME/bin
+
+
+4.node
+wget http://nodejs.org/dist/v0.10.33/node-v0.10.33-linux-x64.tar.gz
+
+tar –zxvf node-v0.10.33-linux-x64.tar.gz
+
+vi /etc/profile
+
+export NODE_HOME="/node/node-v0.10.33-linux-x64/"
+export PATH=$PATH: $NODE_HOME/bin
+
+检测
+node -v 
+npm -v
+
+npm install -g brunch
+ 
+检测
+brunch
+
+5.ambari
+
+
+mvn versions:set -DnewVersion=2.4.1.0.0
+
+mvn -B clean install package rpm:rpm -DnewVersion=2.4.1.0.0 -DskipTests -Dpython.ver="python >= 2.6" -Preplaceurl
+
+
+
+http://a00004/repos/HDP/centos6/2.x/updates/2.5.0.0/
+
+http://a00004/repos/HDP-UTILS-1.1.0.21/repos/centos6/
+
+
+
+rm -rf /var/lib/ambari*  
+rm -rf /usr/lib/python2.6/site-packages/ambari_*  
+rm -rf /usr/lib/python2.6/site-packages/resource_management  
+rm -rf /usr/lib/ambri-* 
+
+
+
+
+#./kafka-topics.sh --create --zookeeper 10.174.229.47:2181 --replication-factor 1 --partitions 1 --topic test
+5.2 查看topic
+# ./kafka-topics.sh --list --zookeeper 10.174.229.47:2181
+5.3 开启发送者并发送消息
+#./kafka-console-producer.sh --broker-list 10.163.123.205:9092 --topic test
+
+5.4 开启消费者并接收消息
+#./kafka-console-consumer.sh --zookeeper 10.174.229.47:2181 --topic test --from-beginning
+
+
+
+
+
+
+
+
+rm -rf /tmp/service_esn_apply/service_esn_apply
+mkdir -p /tmp/service_esn_apply/service_esn_apply
+tar -zxf /tmp/service_esn_apply/service_esn_apply_uat.${BUILD_NUMBER}.${BUILD_ID}.tar.gz -C  /tmp/service_esn_apply/service_esn_apply
+rm -rf /tmp/service_esn_apply/service_esn_apply_uat.${BUILD_NUMBER}.${BUILD_ID}.tar.gz
+
+rm -rf /data/www/service/service_esn_apply
+cp -r  /tmp/service_esn_apply/service_esn_apply /data/www/service/
+rm -rf  /tmp/service_esn_apply/service_esn_apply 
+rm -rf /data/www/service/service_esn_apply/Config
+cp -r /usr/local/publish/config/service/service_esn_apply/Config  /data/www/service/service_esn_apply/
+chown -R esn:esn /data/www/service/service_esn_apply
+
+/server/php/bin/php -c /server/php/conf/php.ini /data/www/YBase/YServer/start.php reload -d

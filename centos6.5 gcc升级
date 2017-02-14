@@ -1,0 +1,35 @@
+centos6.5 gcc升级
+
+1.下载tar包
+wget http://ftp.gnu.org/gnu/gcc/gcc-4.8.2/gcc-4.8.2.tar.bz2
+
+
+cd gcc-4.8.0　
+./contrib/download_prerequisites
+
+创建编译目录
+mkdir gcc-build-4.8.2
+cd gcc-build-4.8.2
+
+
+
+../configure -enable-checking=release -enable-languages=c,c++ -disable-multilib
+
+
+
+make -j4
+
+yum -y install glibc-devel.i686 glibc-devel
+
+make install
+
+
+
+gcc -v
+
+
+yum install -y python-devel zlib-devel libcurl-devel openssl-devel cyrus-sasl-devel cyrus-sasl-md5 apr-devel subversion-devel apr-util-devel
+
+yum install -y apache-maven python-devel zlib-devel libcurl-devel openssl-devel cyrus-sasl-devel cyrus-sasl-md5 apr-devel subversion-devel apr-util-devel
+
+wget http://repos.fedorapeople.org/repos/dchen/apache-maven/epel-apache-maven.repo -O /etc/yum.repos.d/epel-apache-maven.repo
